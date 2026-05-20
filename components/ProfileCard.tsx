@@ -1,144 +1,79 @@
 'use client';
-import { Profile } from '@/data/types';
-import { INDICATOR_KEYS, INDICATOR_EMOJIS, MOBILITY_LABELS } from '@/data/types';
+
+import { type Profile, MOBILITY_LABELS, INDICATOR_ICONS, INDICATORS, type IndicatorKey } from '@/data/profiles';
 
 interface Props {
   profile: Profile;
   selected?: boolean;
-  onSelect?: () => void;
-  onDeselect?: () => void;
-  compact?: boolean;
-  showCompatBadge?: boolean;
+  showCompat?: boolean;
+  onClick?: () => void;
+  disabled?: boolean;
 }
 
-function ScoreDots({ value, max = 5 }: { value: number; max?: number }) {
-  return (
-    <div className="score-dots" aria-label={`Score : ${value} sur ${max}`}>
-      {Array.from({ length: max }, (_, i) => (
-        <span key={i} className={`score-dot${i < value ? ' filled' : ''}`} />
-      ))}
-    </div>
-  );
+const AVATAR_EMOJIS: Record<string, string> = {
+  '🍲': '👩‍🍳', '💬': '🗣️', '🌿': '🌱', '🧹': '🧽', '💻': '💻', '📋': '📋',
+};
+
+function getAvatarEmoji(traits: string[]): string {
+  const first = traits[0];
+  return first ? (AVATAR_EMOJIS[first] ?? '🙂') : '🙂';
 }
 
-export default function ProfileCard({
-  profile,
-  selected = false,
-  onSelect,
-  onDeselect,
-  compact = false,
-  showCompatBadge = false,
-}: Props) {
-  const handleClick = () => {
-    if (selected && onDeselect) onDeselect();
-    else if (!selected && onSelect) onSelect();
-  };
-
-  const isInteractive = Boolean(onSelect || onDeselect);
+export default function ProfileCard({ profile, selected, showCompat, onClick, disabled }: Props) {
+  const emoji = getAvatarEmoji(profile.traits);
 
   return (
-    <article
-      onClick={isInteractive ? handleClick : undefined}
-      role={isInteractive ? 'button' : undefined}
-      tabIndex={isInteractive ? 0 : undefined}
-      aria-pressed={isInteractive ? selected : undefined}
-      onKeyDown={isInteractive ? (e) => e.key === 'Enter' && handleClick() : undefined}
-      style={{
-        background: selected ? `${profile.portraitColor}99` : '#fff',
-        borderRadius: 'var(--radius-md)',
-        border: selected ? `2.5px solid var(--color-accent)` : '2px solid var(--color-border)',
-        padding: compact ? '0.75rem' : '1rem',
-        cursor: isInteractive ? 'pointer' : 'default',
-        transition: 'border-color 0.15s, background 0.15s',
-        boxShadow: selected ? 'var(--shadow-md)' : 'var(--shadow-sm)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.5rem',
-      }}
+    <div
+      className={`profile-card${selected ? ' selected' : ''}${disabled ? ' disabled' : ''}`}
+      onClick={disabled ? undefined : onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick && !disabled ? 0 : undefined}
+      aria-pressed={selected}
+      aria-disabled={disabled}
+      onKeyDown={onClick && !disabled ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
     >
-      {/* Header: portrait + nom + infos */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <div
-          className="portrait"
-          style={{ background: profile.portraitColor }}
-          aria-hidden="true"
-        >
-          {profile.portraitEmoji}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <strong style={{ fontSize: 'var(--font-size-lg)' }}>{profile.name}</strong>
-            <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)' }}>
-              {profile.age} ans
-            </span>
-            {showCompatBadge && selected && (
-              <span className="badge badge-compat">✓ En coloc</span>
-            )}
-          </div>
-          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-muted)' }}>
-            {profile.fragility}
-          </div>
-        </div>
-        {selected && (
-          <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>✅</span>
-        )}
+      <div
+        className="profile-avatar"
+        style={{ background: profile.avatarBg }}
+        aria-hidden="true"
+      >
+        {emoji}
       </div>
 
-      {!compact && (
-        <>
-          {/* Histoire */}
-          <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)', lineHeight: 1.4 }}>
-            {profile.story}
-          </p>
+      <div className="profile-info">
+        <div className="profile-name">
+          {profile.name}, {profile.age} ans
+        </div>
+        <div className="profile-fragility">{profile.fragility}</div>
 
-          {/* Scores */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-            {INDICATOR_KEYS.map((key) => (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.9rem', width: '1.25rem', textAlign: 'center' }}>
-                  {INDICATOR_EMOJIS[key]}
-                </span>
-                <ScoreDots value={profile.scores[key]} />
-              </div>
-            ))}
+        {showCompat && (
+          <div className="compat-badge" aria-label="Compatible avec la sélection">
+            ✓ Compatibilité
           </div>
+        )}
 
-          {/* Traits + mobilité */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-            <span
-              style={{
-                fontSize: 'var(--font-size-sm)',
-                background: 'var(--color-bg)',
-                borderRadius: 99,
-                padding: '0.2rem 0.6rem',
-              }}
-            >
-              {MOBILITY_LABELS[profile.mobility]}
+        <div className="profile-mini-scores" aria-label="Scores individuels">
+          {(INDICATORS as IndicatorKey[]).map((k) => (
+            <span key={k} className="mini-score" title={k}>
+              {INDICATOR_ICONS[k]} {profile.scores[k]}
             </span>
-            {profile.hasHome && (
-              <span className="badge badge-home">🏠 Logement</span>
-            )}
-            {profile.traits.map((trait, i) => (
-              <span key={i} style={{ fontSize: '1.1rem' }} aria-hidden="true">
-                {trait}
-              </span>
-            ))}
-          </div>
+          ))}
+        </div>
 
-          {/* Besoins */}
-          <div
-            style={{
-              fontSize: 'var(--font-size-xs)',
-              color: 'var(--color-accent)',
-              background: 'rgba(61,107,143,0.06)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '0.4rem 0.6rem',
-            }}
-          >
-            🎯 {profile.needs}
-          </div>
-        </>
-      )}
-    </article>
+        <div className="profile-traits" aria-label="Traits de personnalité">
+          {profile.traits.map((t, i) => (
+            <span key={i} className="trait-badge" title={t} aria-label={t}>
+              {t}
+            </span>
+          ))}
+          <span className="mini-score">
+            {MOBILITY_LABELS[profile.mobility]}
+          </span>
+          <span className="mini-score">
+            {profile.hasHome ? '🏠 Logé' : '❌ Sans logis'}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }

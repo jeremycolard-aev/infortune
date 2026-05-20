@@ -1,71 +1,48 @@
 'use client';
-import { Scores, INDICATOR_KEYS, INDICATOR_LABELS, INDICATOR_EMOJIS } from '@/data/types';
+
+import { INDICATOR_LABELS, INDICATOR_ICONS, INDICATORS, type IndicatorKey, type IndicatorScores } from '@/data/profiles';
 
 interface Props {
-  scores: Scores;
+  total: IndicatorScores;
   threshold: number;
-  maxPossible?: number;
+  maxValue?: number;
 }
 
-function getColor(value: number, threshold: number): string {
-  if (value >= threshold) return 'var(--color-fortune)';
-  if (value >= threshold * 0.7) return '#ff9800';
-  return 'var(--color-infortune)';
-}
-
-export default function IndicatorBars({ scores, threshold, maxPossible = 20 }: Props) {
+export default function IndicatorBars({ total, threshold, maxValue = 20 }: Props) {
   return (
-    <div
-      style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}
-      aria-label="Indicateurs collectifs de la colocation"
-    >
-      {INDICATOR_KEYS.map((key) => {
-        const value = scores[key];
-        const pct = Math.min(100, (value / maxPossible) * 100);
-        const thresholdPct = Math.min(100, (threshold / maxPossible) * 100);
-        const met = value >= threshold;
-        const color = getColor(value, threshold);
+    <div className="indicator-bars" role="region" aria-label="Indicateurs collectifs de la colocation">
+      {(INDICATORS as IndicatorKey[]).map((key) => {
+        const value = total[key];
+        const pct = Math.min(100, (value / maxValue) * 100);
+        const thresholdPct = Math.min(100, (threshold / maxValue) * 100);
+        const isOk = value >= threshold;
+        const isAlmost = !isOk && value >= threshold * 0.8;
+
+        let fillClass = 'low';
+        if (isOk) fillClass = 'ok';
+        else if (isAlmost) fillClass = 'almost';
 
         return (
-          <div key={key}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '0.25rem',
-              }}
-            >
-              <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
-                {INDICATOR_EMOJIS[key]} {INDICATOR_LABELS[key].split(' ').slice(1).join(' ')}
-              </span>
+          <div key={key} className="indicator-row">
+            <div className="indicator-label-row">
+              <span className="indicator-label">{INDICATOR_LABELS[key]}</span>
               <span
-                style={{
-                  fontSize: 'var(--font-size-sm)',
-                  fontWeight: 700,
-                  color,
-                }}
+                className={`indicator-value ${isOk ? 'ok' : 'not-ok'}`}
                 aria-label={`${value} sur ${threshold} requis`}
               >
                 {value}/{threshold}
-                {met && ' ✓'}
+                {isOk ? ' ✓' : ''}
               </span>
             </div>
-            <div
-              className="progress-bar-track"
-              role="progressbar"
-              aria-valuenow={value}
-              aria-valuemin={0}
-              aria-valuemax={maxPossible}
-            >
+            <div className="bar-track" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={maxValue}>
               <div
-                className="progress-bar-fill"
-                style={{ width: `${pct}%`, background: color }}
+                className={`bar-fill ${fillClass}`}
+                style={{ width: `${pct}%` }}
               />
               <div
-                className="progress-bar-threshold"
+                className="bar-threshold"
                 style={{ left: `${thresholdPct}%` }}
-                aria-hidden="true"
+                title={`Seuil : ${threshold}`}
               />
             </div>
           </div>

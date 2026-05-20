@@ -1,17 +1,11 @@
-# Médias — Ma Coloc Solidaire
+# Médias
 
-Ce dossier contient les ressources non structurées du projet :
-- **audio/** : effets sonores et musique d'ambiance
-- **images/** : illustrations, portraits personnalisés, logo LpL
+Ce dossier contiendra les assets non structurés du projet.
 
-## Assets en attente
+## Structure prévue
 
-| Fichier | Description | Statut |
-|---|---|---|
-| `logo-lpl.svg` | Logo officiel Lien pour l'Autre | En attente |
-| `portrait-*.png` | Portraits des 14 personnages | En attente |
-| `wheel-spin.mp3` | Son de la roue | En attente |
-| `fortune.mp3` | Son Fortune | En attente |
-| `infortune.mp3` | Son Infortune | En attente |
+- `/images` — Visuels, portraits, logo LpL
+- `/audio` — Effets sonores, musiques d'ambiance
 
-En attendant les assets définitifs, l'application utilise des emojis et des couleurs pastel comme placeholders.
+Les fichiers seront déposés ici au fur et à mesure de leur fourniture.
+Les chemins d'import correspondants seront mis à jour dans les composants concernés.
