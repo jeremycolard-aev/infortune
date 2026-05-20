@@ -1,0 +1,29 @@
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'Ma Coloc Solidaire',
+  description:
+    "Jeu pédagogique de gestion de colocation solidaire — inspiré de La Roue de l'Infortune (LpL)",
+  manifest: '/infortune/manifest.json',
+  icons: { icon: '/infortune/favicon.ico' },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#3d6b8f',
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="fr">
+      <body>{children}</body>
+    </html>
+  );
+}
