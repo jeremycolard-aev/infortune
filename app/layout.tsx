@@ -4,24 +4,21 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Ma Coloc Solidaire',
   description:
-    "Jeu pédagogique de gestion de colocation solidaire — inspiré de La Roue de l'Infortune (LpL)",
+    "Jeu pédagogique de gestion de colocations solidaires — inspiré de La Roue de l'Infortune de l'association Lien pour l'Autre",
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#3d6b8f',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>
+        <div id="app-wrapper">{children}</div>
+      </body>
     </html>
   );
 }

@@ -1,102 +1,130 @@
-import { profiles, type Profile, type Scores, INDICATOR_KEYS } from '@/data/profiles';
-import type { WheelEvent } from '@/data/events';
+import {
+  Difficulty,
+  DifficultyConfig,
+  IndicatorKey,
+  INDICATOR_KEYS,
+  Profile,
+  Scores,
+  WheelEvent,
+  WheelResult,
+} from '@/data/types';
+import { PROFILES } from '@/data/profiles';
+import { WHEEL_EVENTS } from '@/data/events';
 
-export type Difficulty = 3 | 4 | 'expert';
+export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
+  easy: {
+    label: '3 colocataires',
+    colocationSize: 3,
+    threshold: 12,
+    drawnCount: 5,
+    description: 'Seuil ≥ 12 par indicateur',
+  },
+  medium: {
+    label: '4 colocataires',
+    colocationSize: 4,
+    threshold: 15,
+    drawnCount: 6,
+    description: 'Seuil ≥ 15 par indicateur',
+  },
+  expert: {
+    label: 'Expert',
+    colocationSize: 4,
+    threshold: 18,
+    drawnCount: 6,
+    description: 'Seuil ≥ 18 + événements fréquents',
+  },
+};
 
-export function getThreshold(difficulty: Difficulty): number {
-  if (difficulty === 3) return 12;
-  if (difficulty === 4) return 15;
-  return 18;
-}
-
-export function drawProfiles(count: number = 5): Profile[] {
-  const shuffled = [...profiles].sort(() => Math.random() - 0.5);
+export function drawProfiles(count: number): Profile[] {
+  const shuffled = [...PROFILES].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
 
-export function areCompatible(a: Profile, b: Profile): boolean {
-  return a.compatible.includes(b.id) || b.compatible.includes(a.id);
-}
-
-export function computeColocationScores(
+export function calculateCollectiveScores(
   selectedProfiles: Profile[],
-  overrides: Record<number, Partial<Scores>>
+  profileScores: Record<number, Scores>
 ): Scores {
-  const base: Scores = {
-    financial: 0,
-    health: 0,
-    social: 0,
-    rights: 0,
-    resilience: 0,
+  const base: Scores = { financial: 0, health: 0, social: 0, rights: 0, resilience: 0 };
+  return selectedProfiles.reduce((acc, profile) => {
+    const scores = profileScores[profile.id] ?? profile.scores;
+    INDICATOR_KEYS.forEach((key) => {
+      acc[key] += scores[key];
+    });
+    return acc;
+  }, base);
+}
+
+export function checkThresholds(collective: Scores, threshold: number): boolean {
+  return INDICATOR_KEYS.every((key) => collective[key] >= threshold);
+}
+
+export function getFailingIndicators(collective: Scores, threshold: number): IndicatorKey[] {
+  return INDICATOR_KEYS.filter((key) => collective[key] < threshold);
+}
+
+export function areCompatible(p1: Profile, p2: Profile): boolean {
+  return p1.compatibles.includes(p2.id) || p2.compatibles.includes(p1.id);
+}
+
+export function getCompatibilityPairs(profiles: Profile[]): [number, number][] {
+  const pairs: [number, number][] = [];
+  for (let i = 0; i < profiles.length; i++) {
+    for (let j = i + 1; j < profiles.length; j++) {
+      if (areCompatible(profiles[i], profiles[j])) {
+        pairs.push([profiles[i].id, profiles[j].id]);
+      }
+    }
+  }
+  return pairs;
+}
+
+export function spinWheel(selectedProfiles: Profile[]): WheelResult {
+  const randomProfile = selectedProfiles[Math.floor(Math.random() * selectedProfiles.length)];
+  const isFortune = Math.random() < 0.5;
+  const event = WHEEL_EVENTS.find((e) => e.profileId === randomProfile.id);
+
+  if (!event) {
+    return {
+      profileId: randomProfile.id,
+      profileName: randomProfile.name,
+      isFortune,
+      event: isFortune
+        ? { title: 'Bonne nouvelle', effects: [{ indicator: 'resilience', delta: 1 }], phrase: '« Ça va mieux ! »' }
+        : { title: 'Coup dur', effects: [{ indicator: 'financial', delta: -1 }], phrase: '« Courage... »' },
+    };
+  }
+
+  return {
+    profileId: randomProfile.id,
+    profileName: randomProfile.name,
+    isFortune,
+    event: isFortune ? event.fortune : event.infortune,
   };
-
-  for (const profile of selectedProfiles) {
-    const override = overrides[profile.id] ?? {};
-    for (const key of INDICATOR_KEYS) {
-      const raw = profile.scores[key] + (override[key] ?? 0);
-      base[key] += Math.max(0, Math.min(5, raw));
-    }
-  }
-
-  return base;
 }
 
-export function checkWin(scores: Scores, threshold: number): boolean {
-  return INDICATOR_KEYS.every((k) => scores[k] >= threshold);
+export function applyEffects(
+  profileId: number,
+  currentScores: Scores,
+  result: WheelResult
+): Scores {
+  if (result.profileId !== profileId) return currentScores;
+  const updated = { ...currentScores };
+  result.event.effects.forEach(({ indicator, delta }) => {
+    updated[indicator] = Math.max(0, Math.min(10, updated[indicator] + delta));
+  });
+  return updated;
 }
 
-export function getWeakIndicators(
-  scores: Scores,
-  threshold: number
-): (keyof Scores)[] {
-  return INDICATOR_KEYS.filter((k) => scores[k] < threshold);
-}
-
-export function applyWheelEffect(
-  current: Partial<Scores>,
-  effect: Partial<Scores>
-): Partial<Scores> {
-  const result = { ...current };
-  for (const key of INDICATOR_KEYS) {
-    if (effect[key] !== undefined) {
-      result[key] = (result[key] ?? 0) + effect[key]!;
-    }
-  }
-  return result;
-}
-
-export function pickWheelOutcome(event: WheelEvent): 'fortune' | 'infortune' {
-  return Math.random() < 0.5 ? 'fortune' : 'infortune';
-}
-
-export function getCompatibilityScore(selectedProfiles: Profile[]): number {
-  let count = 0;
-  for (let i = 0; i < selectedProfiles.length; i++) {
-    for (let j = i + 1; j < selectedProfiles.length; j++) {
-      if (areCompatible(selectedProfiles[i], selectedProfiles[j])) count++;
-    }
-  }
-  return count;
-}
-
-export function getProfileById(id: number): Profile | undefined {
-  return profiles.find((p) => p.id === id);
-}
-
-export function formatEffect(effect: Partial<Scores>): string {
-  const parts: string[] = [];
-  const emojis: Record<keyof Scores, string> = {
-    financial: '💶',
-    health: '💪',
-    social: '🧑‍🤝‍🧑',
-    rights: '⚖️',
-    resilience: '🚀',
+export function applyBonus(current: Scores, indicator: IndicatorKey, delta: number): Scores {
+  return {
+    ...current,
+    [indicator]: Math.max(0, Math.min(10, current[indicator] + delta)),
   };
-  for (const key of INDICATOR_KEYS) {
-    const val = effect[key];
-    if (val !== undefined && val !== 0) {
-      parts.push(`${emojis[key]}${val > 0 ? '+' : ''}${val}`);
-    }
-  }
-  return parts.join('  ');
+}
+
+export function initProfileScores(profiles: Profile[]): Record<number, Scores> {
+  return profiles.reduce<Record<number, Scores>>((acc, p) => {
+    acc[p.id] = { ...p.scores };
+    return acc;
+  }, {});
 }

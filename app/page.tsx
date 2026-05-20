@@ -1,11 +1,9 @@
 'use client';
-
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { hasSave, clearSave } from '@/lib/storage';
-import styles from './home.module.css';
+import { hasSave } from '@/lib/storage';
 
-export default function HomePage() {
+export default function Home() {
   const router = useRouter();
   const [saveExists, setSaveExists] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -14,42 +12,72 @@ export default function HomePage() {
     setSaveExists(hasSave());
   }, []);
 
-  function handleNew() {
-    clearSave();
-    router.push('/game');
-  }
-
-  function handleResume() {
-    router.push('/game?resume=1');
-  }
-
   return (
-    <main className={styles.home}>
-      <div className={styles.hero}>
-        {/* Logo placeholder LpL */}
-        <div className={styles.logoPlaceholder} aria-label="Logo LpL">
-          <svg width="80" height="80" viewBox="0 0 80 80" fill="none" aria-hidden="true">
-            <circle cx="40" cy="40" r="38" fill="#3d6b8f" />
-            <text x="50%" y="55%" textAnchor="middle" fill="white" fontSize="28" fontWeight="700" fontFamily="system-ui">
-              LpL
-            </text>
-          </svg>
-        </div>
-
-        <h1 className={styles.title}>Ma Coloc Solidaire</h1>
-        <p className={styles.subtitle}>
-          Construis une colocation qui change des vies
-        </p>
-        <p className={styles.tagline}>
-          Inspiré de{' '}
-          <em>La Roue de l&apos;Infortune</em> · Association Lien pour l&apos;Autre
-        </p>
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem 1.5rem',
+        background: 'linear-gradient(160deg, var(--color-vert) 0%, var(--color-bleu) 100%)',
+      }}
+    >
+      {/* Logo */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <svg
+          viewBox="0 0 100 100"
+          width="90"
+          height="90"
+          aria-label="Logo Lien pour l'Autre"
+          role="img"
+        >
+          <circle cx="50" cy="50" r="48" fill="var(--color-accent)" />
+          <text
+            x="50"
+            y="58"
+            textAnchor="middle"
+            fill="white"
+            fontSize="26"
+            fontWeight="bold"
+            fontFamily="system-ui, sans-serif"
+          >
+            LpL
+          </text>
+        </svg>
       </div>
 
-      <div className={styles.actions}>
+      {/* Titre */}
+      <h1
+        style={{
+          fontSize: 'var(--font-size-2xl)',
+          fontWeight: 700,
+          color: 'var(--color-texte)',
+          textAlign: 'center',
+          marginBottom: '0.5rem',
+          lineHeight: 1.2,
+        }}
+      >
+        Ma Coloc Solidaire
+      </h1>
+      <p
+        style={{
+          fontSize: 'var(--font-size-base)',
+          color: 'rgba(44,62,80,0.72)',
+          textAlign: 'center',
+          marginBottom: '2.5rem',
+          maxWidth: 280,
+        }}
+      >
+        Construis une colocation qui change des vies
+      </p>
+
+      {/* Actions */}
+      <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         <button
-          className="btn btn-primary"
-          onClick={handleNew}
+          className="btn-primary"
+          onClick={() => router.push('/game')}
           aria-label="Démarrer une nouvelle saison"
         >
           🏠 Nouvelle saison
@@ -57,64 +85,86 @@ export default function HomePage() {
 
         {saveExists && (
           <button
-            className="btn btn-secondary"
-            onClick={handleResume}
+            className="btn-secondary"
+            onClick={() => router.push('/game?resume=1')}
             aria-label="Reprendre la partie sauvegardée"
+            style={{ background: 'rgba(255,255,255,0.7)' }}
           >
             ▶️ Reprendre
           </button>
         )}
 
         <button
-          className="btn btn-secondary"
+          className="btn-secondary"
           onClick={() => setShowRules(true)}
-          aria-label="Lire les règles du jeu"
+          aria-label="Voir les règles du jeu"
+          style={{ background: 'rgba(255,255,255,0.7)' }}
         >
           ❓ Comment jouer
         </button>
       </div>
 
+      {/* Crédit */}
+      <p
+        style={{
+          position: 'fixed',
+          bottom: '1rem',
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          fontSize: 'var(--font-size-xs)',
+          color: 'rgba(44,62,80,0.5)',
+        }}
+      >
+        Inspiré de La Roue de l&apos;Infortune — Association Lien pour l&apos;Autre
+      </p>
+
+      {/* Modal règles */}
       {showRules && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Règles du jeu">
-          <div className="modal-box">
-            <h2 className={styles.rulesTitle}>Comment jouer</h2>
-
-            <ol className={styles.rulesList}>
-              <li>
-                <strong>Choisis la difficulté</strong> — 3 ou 4 colocataires, ou mode Expert.
-              </li>
-              <li>
-                <strong>Salle d&apos;attente</strong> — Pioche 5 profils et sélectionne ceux qui formeront la coloc. Repère les compatibilités !
-              </li>
-              <li>
-                <strong>Plateau</strong> — Les 5 indicateurs collectifs (💶💪🧑‍🤝‍🧑⚖️🚀) doivent tous atteindre le seuil de ta difficulté.
-              </li>
-              <li>
-                <strong>Filets de solidarité</strong> — Chaque personnage peut activer un organisme d&apos;aide (+1 sur un indicateur), mais avec un délai simulant la réalité administrative.
-              </li>
-              <li>
-                <strong>La Roue</strong> — Elle tourne 1 fois par saison et peut améliorer ou compliquer la situation d&apos;un colocataire au hasard.
-              </li>
-              <li>
-                <strong>Valider</strong> — Si tous les seuils sont atteints, la saison est gagnée !
-              </li>
+        <div
+          className="modal-overlay"
+          onClick={() => setShowRules(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Règles du jeu"
+        >
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+            <div
+              style={{
+                width: 40,
+                height: 4,
+                background: 'var(--color-border)',
+                borderRadius: 99,
+                margin: '0 auto 1.25rem',
+              }}
+              aria-hidden="true"
+            />
+            <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: '1rem' }}>
+              🎲 Comment jouer
+            </h2>
+            <ol style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {[
+                { icon: '🎯', text: 'Choisis une difficulté (3 ou 4 colocataires).' },
+                { icon: '👥', text: 'Sélectionne tes colocataires dans la salle d\'attente parmi les profils disponibles.' },
+                { icon: '📊', text: 'Équilibre les 5 indicateurs collectifs : Finances, Santé, Réseau, Droits, Rebond.' },
+                { icon: '🎡', text: 'Lance la Roue une fois par tour pour vivre des événements Fortune ou Infortune.' },
+                { icon: '🏛️', text: 'Active les Filets de Solidarité pour obtenir une aide (avec délai administratif !).' },
+                { icon: '🏆', text: 'Valide la coloc quand tous les seuils sont atteints !' },
+              ].map(({ icon, text }, i) => (
+                <li key={i} style={{ fontSize: 'var(--font-size-sm)', lineHeight: 1.5 }}>
+                  {icon} {text}
+                </li>
+              ))}
             </ol>
-
-            <div className={styles.indicatorLegend}>
-              <span>💶 Stabilité financière</span>
-              <span>💪 Santé / bien-être</span>
-              <span>🧑‍🤝‍🧑 Réseau social</span>
-              <span>⚖️ Accès aux droits</span>
-              <span>🚀 Capacité à rebondir</span>
+            <div style={{ marginTop: '1.5rem' }}>
+              <button
+                className="btn-primary"
+                onClick={() => setShowRules(false)}
+                aria-label="Fermer les règles"
+              >
+                C'est parti !
+              </button>
             </div>
-
-            <button
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: '1.5rem' }}
-              onClick={() => setShowRules(false)}
-            >
-              Compris !
-            </button>
           </div>
         </div>
       )}

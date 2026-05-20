@@ -1,508 +1,305 @@
 'use client';
-
-import { useCallback, useEffect, useReducer } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
-
-import { profiles, type Profile, type Scores, INDICATOR_KEYS } from '@/data/profiles';
-import { wheelEvents } from '@/data/events';
-import { solidarityNets } from '@/data/solidarityNets';
-import {
-  getThreshold,
-  drawProfiles,
-  computeColocationScores,
-  checkWin,
-  pickWheelOutcome,
-  applyWheelEffect,
-  areCompatible,
-  type Difficulty,
-} from '@/lib/gameLogic';
-import { saveGame, loadGame, clearSave, type NetState } from '@/lib/storage';
-
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { GameProvider, useGame } from './context';
+import { loadGame } from '@/lib/storage';
+import { DIFFICULTY_CONFIGS } from '@/lib/gameLogic';
+import { Difficulty, Profile } from '@/data/types';
+import { GameSave } from '@/lib/storage';
 import ProfileCard from '@/components/ProfileCard';
 import ColocationBoard from '@/components/ColocationBoard';
-import WheelSpinner from '@/components/WheelSpinner';
 import ResultScreen from '@/components/ResultScreen';
-import styles from './game.module.css';
 
-// ─── State ───────────────────────────────────────────────────────────────────
+// ── Difficulty Screen ──────────────────────────────────────────────────────
 
-type Screen =
-  | 'difficulty'
-  | 'waiting-room'
-  | 'board'
-  | 'wheel'
-  | 'result'
-  | 'journal';
-
-interface WheelResult {
-  profileId: number;
-  outcome: 'fortune' | 'infortune';
-}
-
-interface GameState {
-  screen: Screen;
-  season: number;
-  difficulty: Difficulty;
-  threshold: number;
-  availableProfiles: Profile[];
-  selectedProfiles: Profile[];
-  scoreOverrides: Record<number, Partial<Scores>>;
-  nets: Record<number, NetState>;
-  wheelUsed: boolean;
-  wheelResult: WheelResult | null;
-  history: Array<{
-    season: number;
-    profileIds: number[];
-    success: boolean;
-    scores: Scores;
-    compatibilityCount: number;
-    date: string;
-  }>;
-}
-
-// ─── Actions ─────────────────────────────────────────────────────────────────
-
-type Action =
-  | { type: 'SET_DIFFICULTY'; difficulty: Difficulty }
-  | { type: 'SELECT_PROFILE'; profile: Profile }
-  | { type: 'DESELECT_PROFILE'; profileId: number }
-  | { type: 'START_BOARD' }
-  | { type: 'ACTIVATE_NET'; profileId: number }
-  | { type: 'SPIN_WHEEL' }
-  | { type: 'CLOSE_WHEEL' }
-  | { type: 'VALIDATE' }
-  | { type: 'NEXT_SEASON' }
-  | { type: 'LOAD'; state: GameState };
-
-// ─── Reducer ─────────────────────────────────────────────────────────────────
-
-function createInitialState(): GameState {
-  return {
-    screen: 'difficulty',
-    season: 1,
-    difficulty: 3,
-    threshold: 12,
-    availableProfiles: [],
-    selectedProfiles: [],
-    scoreOverrides: {},
-    nets: {},
-    wheelUsed: false,
-    wheelResult: null,
-    history: [],
-  };
-}
-
-function gameReducer(state: GameState, action: Action): GameState {
-  switch (action.type) {
-    case 'LOAD':
-      return action.state;
-
-    case 'SET_DIFFICULTY': {
-      const threshold = getThreshold(action.difficulty);
-      const poolSize = action.difficulty === 'expert' ? 6 : 5;
-      return {
-        ...state,
-        difficulty: action.difficulty,
-        threshold,
-        availableProfiles: drawProfiles(poolSize),
-        screen: 'waiting-room',
-      };
-    }
-
-    case 'SELECT_PROFILE': {
-      const max = state.difficulty === 'expert' ? 4 : (state.difficulty as number);
-      if (state.selectedProfiles.length >= max) return state;
-      if (state.selectedProfiles.some((p) => p.id === action.profile.id)) return state;
-      return {
-        ...state,
-        selectedProfiles: [...state.selectedProfiles, action.profile],
-      };
-    }
-
-    case 'DESELECT_PROFILE':
-      return {
-        ...state,
-        selectedProfiles: state.selectedProfiles.filter((p) => p.id !== action.profileId),
-      };
-
-    case 'START_BOARD': {
-      const nets: Record<number, NetState> = {};
-      for (const p of state.selectedProfiles) {
-        nets[p.id] = { activated: false, turnsLeft: 0, applied: false };
-      }
-      return { ...state, screen: 'board', nets, scoreOverrides: {}, wheelUsed: false };
-    }
-
-    case 'ACTIVATE_NET': {
-      const net = solidarityNets.find((n) => n.profileId === action.profileId);
-      if (!net) return state;
-      return {
-        ...state,
-        nets: {
-          ...state.nets,
-          [action.profileId]: {
-            activated: true,
-            turnsLeft: net.delayTurns,
-            applied: false,
-          },
-        },
-      };
-    }
-
-    case 'SPIN_WHEEL': {
-      const profile =
-        state.selectedProfiles[Math.floor(Math.random() * state.selectedProfiles.length)];
-      const event = wheelEvents.find((e) => e.profileId === profile.id);
-      if (!event) return { ...state, wheelUsed: true };
-      const outcome = pickWheelOutcome(event);
-      const effect = event[outcome].effect;
-
-      const current = state.scoreOverrides[profile.id] ?? {};
-      const updated = applyWheelEffect(current, effect);
-
-      const newNets = { ...state.nets };
-      for (const p of state.selectedProfiles) {
-        const n = newNets[p.id];
-        if (n?.activated && !n.applied) {
-          const remaining = n.turnsLeft - 1;
-          if (remaining <= 0) {
-            const net = solidarityNets.find((s) => s.profileId === p.id);
-            const bonusOverride = applyWheelEffect(state.scoreOverrides[p.id] ?? {}, net?.bonus ?? {});
-            newNets[p.id] = { activated: true, turnsLeft: 0, applied: true };
-            return {
-              ...state,
-              scoreOverrides: {
-                ...state.scoreOverrides,
-                [profile.id]: updated,
-                [p.id]: bonusOverride,
-              },
-              nets: newNets,
-              wheelUsed: true,
-              wheelResult: { profileId: profile.id, outcome },
-              screen: 'wheel',
-            };
-          } else {
-            newNets[p.id] = { ...n, turnsLeft: remaining };
-          }
-        }
-      }
-
-      return {
-        ...state,
-        scoreOverrides: { ...state.scoreOverrides, [profile.id]: updated },
-        nets: newNets,
-        wheelUsed: true,
-        wheelResult: { profileId: profile.id, outcome },
-        screen: 'wheel',
-      };
-    }
-
-    case 'CLOSE_WHEEL':
-      return { ...state, screen: 'board' };
-
-    case 'VALIDATE': {
-      const scores = computeColocationScores(state.selectedProfiles, state.scoreOverrides);
-      const success = checkWin(scores, state.threshold);
-      const compatCount = countCompat(state.selectedProfiles);
-      return {
-        ...state,
-        screen: 'result',
-        history: [
-          ...state.history,
-          {
-            season: state.season,
-            profileIds: state.selectedProfiles.map((p) => p.id),
-            success,
-            scores,
-            compatibilityCount: compatCount,
-            date: new Date().toISOString(),
-          },
-        ],
-      };
-    }
-
-    case 'NEXT_SEASON': {
-      return {
-        ...state,
-        screen: 'difficulty',
-        season: state.season + 1,
-        availableProfiles: [],
-        selectedProfiles: [],
-        scoreOverrides: {},
-        nets: {},
-        wheelUsed: false,
-        wheelResult: null,
-      };
-    }
-
-    default:
-      return state;
-  }
-}
-
-function countCompat(selected: Profile[]): number {
-  let count = 0;
-  for (let i = 0; i < selected.length; i++) {
-    for (let j = i + 1; j < selected.length; j++) {
-      if (areCompatible(selected[i], selected[j])) count++;
-    }
-  }
-  return count;
-}
-
-// ─── Persistence helper ───────────────────────────────────────────────────────
-
-function persist(state: GameState) {
-  saveGame({
-    season: state.season,
-    difficulty: state.difficulty as 3 | 4 | 'expert',
-    threshold: state.threshold,
-    selectedProfileIds: state.selectedProfiles.map((p) => p.id),
-    scoreOverrides: state.scoreOverrides as Record<number, Record<string, number>>,
-    nets: state.nets,
-    wheelUsed: state.wheelUsed,
-    history: state.history.map((h) => ({
-      ...h,
-      scores: Object.fromEntries(
-        INDICATOR_KEYS.map((k) => [k, h.scores[k]])
-      ) as Record<string, number>,
-    })),
-    screen: state.screen,
-  });
-}
-
-// ─── Inner component ─────────────────────────────────────────────────────────
-
-function GameInner() {
+function DifficultyScreen() {
+  const { dispatch } = useGame();
   const router = useRouter();
-  const params = useSearchParams();
-  const [state, dispatch] = useReducer(gameReducer, createInitialState());
 
-  // Load save on mount
-  useEffect(() => {
-    if (params.get('resume') === '1') {
-      const saved = loadGame();
-      if (saved) {
-        const rehydrated: GameState = {
-          screen: (saved.screen as Screen) ?? 'difficulty',
-          season: saved.season,
-          difficulty: saved.difficulty,
-          threshold: saved.threshold,
-          availableProfiles: [],
-          selectedProfiles: saved.selectedProfileIds
-            .map((id) => profiles.find((p) => p.id === id))
-            .filter(Boolean) as Profile[],
-          scoreOverrides: saved.scoreOverrides as Record<number, Partial<Scores>>,
-          nets: saved.nets,
-          wheelUsed: saved.wheelUsed,
-          wheelResult: null,
-          history: saved.history.map((h) => ({
-            ...h,
-            scores: h.scores as unknown as Scores,
-          })),
-        };
-        dispatch({ type: 'LOAD', state: rehydrated });
-        return;
-      }
-    }
-    clearSave();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const options: { key: Difficulty; emoji: string }[] = [
+    { key: 'easy', emoji: '🌱' },
+    { key: 'medium', emoji: '🌿' },
+    { key: 'expert', emoji: '🌳' },
+  ];
 
-  // Auto-save
-  useEffect(() => {
-    if (state.screen !== 'difficulty') {
-      persist(state);
-    }
-  }, [state]);
+  return (
+    <div className="screen">
+      <div className="screen-header">
+        <button
+          onClick={() => router.push('/')}
+          className="btn-ghost"
+          aria-label="Retour à l'accueil"
+          style={{ padding: '0.5rem' }}
+        >
+          ← Accueil
+        </button>
+      </div>
 
-  const { screen, season, difficulty, threshold, availableProfiles, selectedProfiles } = state;
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem 1.5rem 2rem',
+          gap: '1.25rem',
+        }}
+      >
+        <h1 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, textAlign: 'center' }}>
+          Choisis ta difficulté
+        </h1>
+        <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)', textAlign: 'center' }}>
+          Le seuil détermine la somme minimale par indicateur pour réussir la colocation.
+        </p>
 
-  const scores = computeColocationScores(selectedProfiles, state.scoreOverrides);
-  const canValidate = checkWin(scores, threshold);
-
-  const maxSelect = difficulty === 'expert' ? 4 : (difficulty as number);
-
-  function isCompatibleWithSelection(profile: Profile): boolean {
-    return selectedProfiles.some((p) => areCompatible(p, profile));
-  }
-
-  // ── Difficulty screen ──
-  if (screen === 'difficulty') {
-    return (
-      <div className={styles.page}>
-        <div className={styles.header}>
-          <button className={styles.backBtn} onClick={() => router.push('/')} aria-label="Retour à l'accueil">
-            ← Accueil
-          </button>
-          <span className={styles.seasonLabel}>Saison {season}</span>
-        </div>
-
-        <div className={styles.difficultyScreen}>
-          <h1 className={styles.screenTitle}>Choisis ta difficulté</h1>
-          <p className={styles.screenSub}>Combien de colocataires vas-tu accueillir ?</p>
-
-          <div className={styles.diffCards}>
-            {([
-              { val: 3 as Difficulty, label: '3 colocataires', emoji: '🏠', desc: 'Seuil ≥ 12 par indicateur', color: 'var(--color-green)' },
-              { val: 4 as Difficulty, label: '4 colocataires', emoji: '🏘️', desc: 'Seuil ≥ 15 par indicateur', color: 'var(--color-blue)' },
-              { val: 'expert' as Difficulty, label: 'Expert', emoji: '⭐', desc: 'Seuil ≥ 18 — événements plus fréquents', color: 'var(--color-pink)' },
-            ]).map(({ val, label, emoji, desc, color }) => (
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {options.map(({ key, emoji }) => {
+            const cfg = DIFFICULTY_CONFIGS[key];
+            return (
               <button
-                key={String(val)}
-                className={styles.diffCard}
-                style={{ background: color }}
-                onClick={() => dispatch({ type: 'SET_DIFFICULTY', difficulty: val })}
-                aria-label={`Difficulté : ${label} — ${desc}`}
+                key={key}
+                onClick={() => dispatch({ type: 'SET_DIFFICULTY', payload: key })}
+                aria-label={`Difficulté : ${cfg.label}`}
+                style={{
+                  background: 'var(--color-blanc)',
+                  border: '2px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '1rem 1.25rem',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+                onMouseOver={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--color-accent)';
+                }}
+                onMouseOut={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--color-border)';
+                }}
               >
-                <span className={styles.diffEmoji}>{emoji}</span>
-                <span className={styles.diffLabel}>{label}</span>
-                <span className={styles.diffDesc}>{desc}</span>
+                <span style={{ fontSize: '2rem' }}>{emoji}</span>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 'var(--font-size-base)' }}>
+                    {cfg.label}
+                  </div>
+                  <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)' }}>
+                    {cfg.description}
+                  </div>
+                </div>
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // ── Waiting room ──
-  if (screen === 'waiting-room') {
-    return (
-      <div className={styles.page}>
-        <div className={styles.header}>
-          <button
-            className={styles.backBtn}
-            onClick={() => dispatch({ type: 'SET_DIFFICULTY', difficulty: difficulty })}
-            aria-label="Retour au choix de difficulté"
+// ── Waiting Room ───────────────────────────────────────────────────────────
+
+function WaitingRoom() {
+  const { state, dispatch } = useGame();
+  const cfg = state.difficulty ? DIFFICULTY_CONFIGS[state.difficulty] : null;
+  if (!cfg) return null;
+
+  const isSelected = (p: Profile) => state.selectedProfiles.some((s) => s.id === p.id);
+  const canSelect = state.selectedProfiles.length < cfg.colocationSize;
+  const canStart = state.selectedProfiles.length === cfg.colocationSize;
+
+  return (
+    <div className="screen">
+      <div
+        className="screen-header"
+        style={{ borderBottom: '1px solid var(--color-border)', flexDirection: 'column', alignItems: 'flex-start' }}
+      >
+        <h1 style={{ fontWeight: 700, fontSize: 'var(--font-size-lg)' }}>
+          🏠 Salle d&apos;attente
+        </h1>
+        <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)' }}>
+          Sélectionne {cfg.colocationSize} profil{cfg.colocationSize > 1 ? 's' : ''} pour ta colocation
+          ({state.selectedProfiles.length}/{cfg.colocationSize})
+        </p>
+      </div>
+
+      <div className="screen-content">
+        {state.drawnProfiles.map((profile) => {
+          const selected = isSelected(profile);
+          return (
+            <ProfileCard
+              key={profile.id}
+              profile={profile}
+              selected={selected}
+              onSelect={canSelect || selected ? () => dispatch({ type: 'SELECT_PROFILE', payload: profile }) : undefined}
+              onDeselect={() => dispatch({ type: 'DESELECT_PROFILE', payload: profile.id })}
+              showCompatBadge
+            />
+          );
+        })}
+      </div>
+
+      <div className="screen-footer">
+        <button
+          className="btn-primary"
+          onClick={() => dispatch({ type: 'START_GAME' })}
+          disabled={!canStart}
+          aria-label="Lancer la colocation avec les profils sélectionnés"
+        >
+          {canStart
+            ? '🚀 Lancer la colocation !'
+            : `Sélectionne encore ${cfg.colocationSize - state.selectedProfiles.length} profil${cfg.colocationSize - state.selectedProfiles.length > 1 ? 's' : ''}`}
+        </button>
+        <button
+          className="btn-ghost"
+          onClick={() => dispatch({ type: 'GO_DIFFICULTY' })}
+        >
+          ← Changer de difficulté
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Journal ────────────────────────────────────────────────────────────────
+
+function JournalScreen() {
+  const { state, dispatch } = useGame();
+
+  return (
+    <div className="screen">
+      <div className="screen-header" style={{ borderBottom: '1px solid var(--color-border)' }}>
+        <h1 style={{ fontWeight: 700, fontSize: 'var(--font-size-lg)' }}>
+          📖 Journal des colocations
+        </h1>
+      </div>
+
+      <div className="screen-content">
+        {state.history.length === 0 ? (
+          <div
+            style={{
+              textAlign: 'center',
+              color: 'var(--color-muted)',
+              padding: '3rem 1rem',
+              fontSize: 'var(--font-size-sm)',
+            }}
           >
-            ← Difficulté
-          </button>
-          <span className={styles.seasonLabel}>Saison {season}</span>
-        </div>
-
-        <div className={styles.waitingRoom}>
-          <h1 className={styles.screenTitle}>Salle d&apos;attente</h1>
-          <p className={styles.screenSub}>
-            Sélectionne {maxSelect} colocataire{maxSelect > 1 ? 's' : ''} pour ta coloc
-            <span className={styles.selectCount}>
-              {selectedProfiles.length}/{maxSelect}
-            </span>
-          </p>
-
-          <div className={styles.profileList}>
-            {availableProfiles.map((profile) => {
-              const isSelected = selectedProfiles.some((p) => p.id === profile.id);
-              const isCompat = !isSelected && isCompatibleWithSelection(profile);
-              return (
-                <ProfileCard
-                  key={profile.id}
-                  profile={profile}
-                  selected={isSelected}
-                  compatible={isCompat}
-                  selectable
-                  onSelect={(p) => dispatch({ type: 'SELECT_PROFILE', profile: p })}
-                  onDeselect={(p) => dispatch({ type: 'DESELECT_PROFILE', profileId: p.id })}
-                />
-              );
-            })}
+            Aucune saison terminée encore. Lance ta première colocation !
           </div>
-
-          <div className={styles.stickyFooter}>
-            <button
-              className="btn btn-primary"
-              disabled={selectedProfiles.length < maxSelect}
-              onClick={() => dispatch({ type: 'START_BOARD' })}
-              aria-label={
-                selectedProfiles.length < maxSelect
-                  ? `Sélectionne encore ${maxSelect - selectedProfiles.length} profil(s)`
-                  : 'Lancer la partie'
-              }
+        ) : (
+          [...state.history].reverse().map((record) => (
+            <div
+              key={record.id}
+              className={`journal-card ${record.success ? 'success' : 'failure'}`}
             >
-              {selectedProfiles.length < maxSelect
-                ? `Encore ${maxSelect - selectedProfiles.length} profil(s)…`
-                : '🏠 Lancer la coloc !'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Board ──
-  if (screen === 'board' || screen === 'wheel') {
-    const wheelRes = state.wheelResult;
-    const wheelProfile = wheelRes
-      ? selectedProfiles.find((p) => p.id === wheelRes.profileId)
-      : undefined;
-    const wheelEvent = wheelRes
-      ? wheelEvents.find((e) => e.profileId === wheelRes.profileId)
-      : undefined;
-
-    return (
-      <div className={styles.page}>
-        <div className={styles.header}>
-          <button
-            className={styles.backBtn}
-            onClick={() => dispatch({ type: 'SET_DIFFICULTY', difficulty: difficulty })}
-            aria-label="Recommencer la sélection"
-          >
-            ← Resélectionner
-          </button>
-          <span className={styles.seasonLabel}>Saison {season}</span>
-        </div>
-
-        <h1 className={styles.boardTitle}>Plateau de la Coloc</h1>
-
-        <ColocationBoard
-          profiles={selectedProfiles}
-          scores={scores}
-          threshold={threshold}
-          nets={state.nets}
-          wheelUsed={state.wheelUsed}
-          canValidate={canValidate}
-          onActivateNet={(id) => dispatch({ type: 'ACTIVATE_NET', profileId: id })}
-          onSpinWheel={() => dispatch({ type: 'SPIN_WHEEL' })}
-          onValidate={() => dispatch({ type: 'VALIDATE' })}
-        />
-
-        {screen === 'wheel' && wheelEvent && wheelProfile && wheelRes && (
-          <WheelSpinner
-            event={wheelEvent}
-            profile={wheelProfile}
-            outcome={wheelRes.outcome}
-            onClose={() => dispatch({ type: 'CLOSE_WHEEL' })}
-          />
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '0.5rem',
+                }}
+              >
+                <div style={{ fontWeight: 700 }}>
+                  {record.success ? '✅' : '💪'} Saison {record.season}
+                </div>
+                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-muted)' }}>
+                  {DIFFICULTY_CONFIGS[record.difficulty].label}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                {record.profiles.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      background: p.portraitColor,
+                      borderRadius: 99,
+                      padding: '0.2rem 0.6rem',
+                      fontSize: 'var(--font-size-xs)',
+                    }}
+                  >
+                    {p.portraitEmoji} {p.name}
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-muted)' }}>
+                {new Date(record.createdAt).toLocaleDateString('fr-FR', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </div>
+            </div>
+          ))
         )}
       </div>
-    );
-  }
 
-  // ── Result ──
-  if (screen === 'result') {
-    const last = state.history[state.history.length - 1];
-    const success = last?.success ?? false;
-    return (
-      <ResultScreen
-        success={success}
-        selectedProfiles={selectedProfiles}
-        scores={scores}
-        threshold={threshold}
-        season={season}
-        onNext={() => dispatch({ type: 'NEXT_SEASON' })}
-      />
-    );
-  }
-
-  return null;
+      <div className="screen-footer">
+        <button
+          className="btn-primary"
+          onClick={() => dispatch({ type: 'NEW_SEASON' })}
+          aria-label="Démarrer une nouvelle saison"
+        >
+          🏠 Nouvelle saison
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={() => dispatch({ type: 'GO_DIFFICULTY' })}
+        >
+          ← Changer de difficulté
+        </button>
+      </div>
+    </div>
+  );
 }
 
-// ─── Page export ─────────────────────────────────────────────────────────────
+// ── Game Router ────────────────────────────────────────────────────────────
+
+function GameRouter() {
+  const { state } = useGame();
+
+  switch (state.screen) {
+    case 'difficulty':
+      return <DifficultyScreen />;
+    case 'waitingRoom':
+      return <WaitingRoom />;
+    case 'colocationBoard':
+      return <ColocationBoard />;
+    case 'result':
+      return <ResultScreen />;
+    case 'journal':
+      return <JournalScreen />;
+    default:
+      return <DifficultyScreen />;
+  }
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────
 
 export default function GamePage() {
+  const searchParams = useSearchParams();
+  const shouldResume = searchParams.get('resume') === '1';
+  const [save, setSave] = useState<GameSave | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (shouldResume) {
+      setSave(loadGame());
+    } else {
+      setSave(null);
+    }
+  }, [shouldResume]);
+
+  if (save === undefined) return null;
+
   return (
-    <Suspense fallback={<div className={styles.loading}>Chargement…</div>}>
-      <GameInner />
-    </Suspense>
+    <GameProvider initialSave={save}>
+      <GameRouter />
+    </GameProvider>
   );
 }

@@ -1,90 +1,131 @@
 'use client';
-
-import { solidarityNets } from '@/data/solidarityNets';
-import { formatEffect } from '@/lib/gameLogic';
-import type { Profile } from '@/data/profiles';
-import type { NetState } from '@/lib/storage';
-import styles from './SolidarityNetModal.module.css';
+import { Profile, ActiveNet, INDICATOR_EMOJIS } from '@/data/types';
+import { SOLIDARITY_NETS } from '@/data/solidarityNets';
 
 interface Props {
   profile: Profile;
-  netState: NetState;
+  activeNets: ActiveNet[];
   onActivate: (profileId: number) => void;
   onClose: () => void;
 }
 
-export default function SolidarityNetModal({ profile, netState, onActivate, onClose }: Props) {
-  const net = solidarityNets.find((n) => n.profileId === profile.id);
+export default function SolidarityNetModal({ profile, activeNets, onActivate, onClose }: Props) {
+  const net = SOLIDARITY_NETS.find((n) => n.profileId === profile.id);
   if (!net) return null;
 
-  const canActivate = !netState.activated && !netState.applied;
-  const isPending = netState.activated && !netState.applied;
+  const activeNet = activeNets.find(
+    (n) => n.profileId === profile.id && !n.applied
+  );
+  const appliedNet = activeNets.find(
+    (n) => n.profileId === profile.id && n.applied
+  );
+  const isActive = Boolean(activeNet);
+  const isApplied = Boolean(appliedNet);
+
+  const canActivate = !isActive && !isApplied;
 
   return (
     <div
       className="modal-overlay"
+      onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label={`Filet de solidarité de ${profile.name}`}
+      aria-label={`Filet de solidarité pour ${profile.name}`}
     >
-      <div className="modal-box">
-        <div className={styles.header}>
-          <div
-            className={styles.avatar}
-            style={{ background: profile.avatarBg }}
-            aria-hidden="true"
-          >
-            {profile.avatar}
+      <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+        {/* Handle */}
+        <div
+          style={{
+            width: 40,
+            height: 4,
+            background: 'var(--color-border)',
+            borderRadius: 99,
+            margin: '0 auto 1.25rem',
+          }}
+          aria-hidden="true"
+        />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+          <div className="portrait" style={{ background: profile.portraitColor }}>
+            {profile.portraitEmoji}
           </div>
           <div>
-            <h2 className={styles.title}>Filet de solidarité</h2>
-            <p className={styles.who}>{profile.name}</p>
+            <div style={{ fontWeight: 700, fontSize: 'var(--font-size-lg)' }}>
+              {profile.name}
+            </div>
+            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)' }}>
+              Filet de solidarité
+            </div>
           </div>
         </div>
 
-        <div className={styles.orgCard}>
-          <p className={styles.orgName}>🏛️ {net.organisme}</p>
-          <p className={styles.orgDesc}>{net.description}</p>
-          <div className={styles.orgDetails}>
-            <span className={styles.bonus} aria-label={`Bonus : ${formatEffect(net.bonus)}`}>
-              Bonus {formatEffect(net.bonus)}
-            </span>
-            <span className={styles.delay}>
-              ⏳ Délai : {net.delayTurns} tour{net.delayTurns > 1 ? 's' : ''}
-            </span>
+        {/* Net info */}
+        <div
+          style={{
+            background: 'var(--color-bg)',
+            borderRadius: 'var(--radius-md)',
+            padding: '1rem',
+            marginBottom: '1rem',
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>
+            🏛️ {net.organization}
+          </div>
+          <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)', marginBottom: '0.5rem' }}>
+            Bonus : {INDICATOR_EMOJIS[net.bonus.indicator]} +{net.bonus.delta}
+          </div>
+          <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)' }}>
+            ⏳ Délai administratif : {net.delay} tour{net.delay > 1 ? 's' : ''}
           </div>
         </div>
 
-        {isPending && (
-          <div className={styles.pendingBanner} role="status">
-            <span>⏳</span>
-            <span>
-              Dossier en cours… encore {netState.turnsLeft} tour{netState.turnsLeft > 1 ? 's' : ''} d&apos;attente.
-            </span>
-          </div>
-        )}
-
-        {netState.applied && (
-          <div className={styles.appliedBanner} role="status">
-            <span>✓</span>
-            <span>Filet activé — bonus déjà appliqué.</span>
-          </div>
-        )}
-
-        <div className={styles.actions}>
-          {canActivate && (
-            <button
-              className="btn btn-primary"
-              onClick={() => onActivate(profile.id)}
-              aria-label={`Activer ${net.organisme} pour ${profile.name}`}
-            >
-              Envoyer le dossier
-            </button>
-          )}
-          <button
-            className="btn btn-secondary"
-            onClick={onClose}
+        {/* Status */}
+        {isApplied && (
+          <div
+            style={{
+              background: '#e8f5e9',
+              color: '#2e7d32',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.75rem 1rem',
+              fontWeight: 600,
+              textAlign: 'center',
+              marginBottom: '1rem',
+            }}
           >
+            ✅ Filet activé et appliqué !
+          </div>
+        )}
+
+        {isActive && activeNet && (
+          <div className="timer-badge" style={{ marginBottom: '1rem', fontSize: 'var(--font-size-sm)' }}>
+            ⏳ En cours — encore {activeNet.turnsRemaining} tour{activeNet.turnsRemaining > 1 ? 's' : ''} avant l'effet
+          </div>
+        )}
+
+        {canActivate && (
+          <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)', marginBottom: '1rem' }}>
+            Activer le filet de solidarité pour déclencher l'aide de {net.organization}.
+            Le bonus sera appliqué dans {net.delay} tour{net.delay > 1 ? 's' : ''}.
+          </p>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <button
+            className="btn-primary"
+            onClick={() => {
+              onActivate(profile.id);
+              onClose();
+            }}
+            disabled={!canActivate}
+            aria-label={`Activer ${net.organization} pour ${profile.name}`}
+          >
+            {isApplied
+              ? '✅ Déjà appliqué'
+              : isActive
+              ? '⏳ En cours…'
+              : `Activer — ${net.organization}`}
+          </button>
+          <button className="btn-secondary" onClick={onClose}>
             Fermer
           </button>
         </div>

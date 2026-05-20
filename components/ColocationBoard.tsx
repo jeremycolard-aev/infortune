@@ -1,152 +1,316 @@
 'use client';
-
 import { useState } from 'react';
-import type { Profile, Scores } from '@/data/profiles';
-import type { NetState } from '@/lib/storage';
+import { useGame } from '@/app/game/context';
+import { Profile } from '@/data/types';
+import { DIFFICULTY_CONFIGS, getCompatibilityPairs } from '@/lib/gameLogic';
+import { SOLIDARITY_NETS } from '@/data/solidarityNets';
 import IndicatorBars from './IndicatorBars';
+import WheelSpinner from './WheelSpinner';
 import SolidarityNetModal from './SolidarityNetModal';
-import styles from './ColocationBoard.module.css';
-
-interface Props {
-  profiles: Profile[];
-  scores: Scores;
-  threshold: number;
-  nets: Record<number, NetState>;
-  wheelUsed: boolean;
-  canValidate: boolean;
-  onActivateNet: (profileId: number) => void;
-  onSpinWheel: () => void;
-  onValidate: () => void;
-}
 
 const QUADRANT_COLORS = [
-  'var(--color-green)',
-  'var(--color-blue)',
-  'var(--color-pink)',
+  'var(--color-vert)',
+  'var(--color-bleu)',
+  'var(--color-rose)',
   'var(--color-beige)',
 ];
 
-export default function ColocationBoard({
-  profiles,
+interface ProfileSlotProps {
+  profile: Profile;
+  scores: { [key: string]: number };
+  color: string;
+  position: string;
+  onNetClick: () => void;
+  hasActiveNet: boolean;
+  netTurns?: number;
+  netApplied: boolean;
+}
+
+function ProfileSlot({
+  profile,
   scores,
-  threshold,
-  nets,
-  wheelUsed,
-  canValidate,
-  onActivateNet,
-  onSpinWheel,
-  onValidate,
-}: Props) {
-  const [netModal, setNetModal] = useState<Profile | null>(null);
-
-  const gridClass =
-    profiles.length === 3
-      ? `${styles.boardGrid} ${styles.cols3}`
-      : styles.boardGrid;
-
-  function getNetLabel(profileId: number): string {
-    const net = nets[profileId];
-    if (!net) return 'Filet de solidarité';
-    if (net.applied) return 'Filet ✓';
-    if (net.activated) return `⏳ ${net.turnsLeft} tour${net.turnsLeft > 1 ? 's' : ''}`;
-    return 'Activer filet';
-  }
-
-  function isNetDisabled(profileId: number): boolean {
-    const net = nets[profileId];
-    return !!net?.activated || !!net?.applied;
-  }
+  color,
+  position,
+  onNetClick,
+  hasActiveNet,
+  netTurns,
+  netApplied,
+}: ProfileSlotProps) {
+  const net = SOLIDARITY_NETS.find((n) => n.profileId === profile.id);
 
   return (
-    <div className={styles.board}>
-      <div className={gridClass}>
-        {profiles.map((profile, i) => {
-          const netState = nets[profile.id] ?? { activated: false, turnsLeft: 0, applied: false };
+    <div
+      style={{
+        background: color,
+        borderRadius: 'var(--radius-md)',
+        padding: '0.75rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.4rem',
+        minHeight: 140,
+      }}
+      aria-label={`Profil ${profile.name} — ${position}`}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div
+          className="portrait-sm"
+          style={{ background: 'rgba(255,255,255,0.7)' }}
+          aria-hidden="true"
+        >
+          {profile.portraitEmoji}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>{profile.name}</div>
+          <div style={{ fontSize: 'var(--font-size-xs)', color: 'rgba(0,0,0,0.55)' }}>
+            {profile.fragility}
+          </div>
+        </div>
+      </div>
+
+      {/* Mini scores */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+        {(['financial', 'health', 'social', 'rights', 'resilience'] as const).map((key) => {
+          const emojis: Record<string, string> = {
+            financial: '💶', health: '💪', social: '🧑‍🤝‍🧑', rights: '⚖️', resilience: '🚀',
+          };
           return (
-            <div
-              key={profile.id}
-              className={styles.quadrant}
-              style={{ background: QUADRANT_COLORS[i % QUADRANT_COLORS.length] }}
+            <span
+              key={key}
+              style={{
+                fontSize: 'var(--font-size-xs)',
+                background: 'rgba(255,255,255,0.55)',
+                borderRadius: 99,
+                padding: '0.15rem 0.4rem',
+              }}
             >
-              <div
-                className={styles.avatar}
-                style={{ background: profile.avatarBg }}
-                aria-hidden="true"
-              >
-                {profile.avatar}
-              </div>
-              <div className={styles.profileName}>{profile.name}</div>
-              <div className={styles.profileAge}>{profile.age} ans</div>
-              <div className={styles.profileFragility}>{profile.fragility}</div>
-
-              <div className={styles.miniScores} aria-label={`Scores de ${profile.name}`}>
-                <span title="Stabilité financière">💶{profile.scores.financial}</span>
-                <span title="Santé">💪{profile.scores.health}</span>
-                <span title="Réseau social">🧑‍🤝‍🧑{profile.scores.social}</span>
-                <span title="Droits">⚖️{profile.scores.rights}</span>
-                <span title="Résilience">🚀{profile.scores.resilience}</span>
-              </div>
-
-              <button
-                className={`${styles.netBtn} ${netState.applied ? styles.netApplied : ''}`}
-                onClick={() => setNetModal(profile)}
-                disabled={false}
-                aria-label={`Filet de solidarité de ${profile.name} — ${getNetLabel(profile.id)}`}
-              >
-                {isNetDisabled(profile.id) ? (
-                  netState.applied ? '✓ Filet activé' : `⏳ ${netState.turnsLeft}t`
-                ) : (
-                  '🏛️ Filet'
-                )}
-              </button>
-            </div>
+              {emojis[key]}{scores[key]}
+            </span>
           );
         })}
       </div>
 
-      <div className={styles.indicatorsSection}>
-        <h2 className={styles.indicatorsTitle}>Indicateurs collectifs</h2>
-        <IndicatorBars
-          scores={scores}
-          threshold={threshold}
-          maxPerProfile={5}
-          profileCount={profiles.length}
-        />
-      </div>
-
-      <div className={styles.actions}>
+      {/* Net button */}
+      {net && (
         <button
-          className="btn btn-primary"
-          onClick={onSpinWheel}
-          disabled={wheelUsed}
-          aria-label={wheelUsed ? 'Roue déjà utilisée ce tour' : 'Lancer la Roue de l\'Infortune'}
-        >
-          {wheelUsed ? '🎡 Roue utilisée' : '🎡 Lancer la Roue'}
-        </button>
-
-        <button
-          className={`btn ${canValidate ? 'btn-fortune' : 'btn-secondary'}`}
-          onClick={onValidate}
-          disabled={!canValidate}
-          aria-label={
-            canValidate
-              ? 'Valider la colocation — tous les seuils sont atteints'
-              : 'Valider la colocation — seuils non atteints'
-          }
-        >
-          {canValidate ? '✅ Valider la coloc !' : '🔒 Seuils non atteints'}
-        </button>
-      </div>
-
-      {netModal && (
-        <SolidarityNetModal
-          profile={netModal}
-          netState={nets[netModal.id] ?? { activated: false, turnsLeft: 0, applied: false }}
-          onActivate={(id) => {
-            onActivateNet(id);
-            setNetModal(null);
+          onClick={onNetClick}
+          disabled={hasActiveNet || netApplied}
+          aria-label={`Filet de solidarité de ${profile.name} : ${net.organization}`}
+          style={{
+            background: netApplied
+              ? '#e8f5e9'
+              : hasActiveNet
+              ? '#fff3e0'
+              : 'rgba(255,255,255,0.75)',
+            color: netApplied ? '#2e7d32' : hasActiveNet ? '#e65100' : 'var(--color-accent)',
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            padding: '0.3rem 0.5rem',
+            fontSize: 'var(--font-size-xs)',
+            fontWeight: 600,
+            cursor: hasActiveNet || netApplied ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            marginTop: 'auto',
           }}
-          onClose={() => setNetModal(null)}
+        >
+          {netApplied ? '✅' : hasActiveNet ? `⏳ ${netTurns}t` : '🏛️'}
+          {' '}
+          {netApplied ? 'Filet appliqué' : hasActiveNet ? `En cours` : net.organization}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function ColocationBoard() {
+  const { state, dispatch, collectiveScores, isThresholdMet } = useGame();
+  const [selectedNetProfile, setSelectedNetProfile] = useState<Profile | null>(null);
+
+  const cfg = state.difficulty ? DIFFICULTY_CONFIGS[state.difficulty] : null;
+  const threshold = cfg?.threshold ?? 12;
+  const colSize = state.selectedProfiles.length;
+  const maxPossible = colSize * 5;
+  const compatPairs = getCompatibilityPairs(state.selectedProfiles);
+
+  const getNetState = (profileId: number) => {
+    const active = state.activeSolidarityNets.find(
+      (n) => n.profileId === profileId && !n.applied
+    );
+    const applied = state.activeSolidarityNets.find(
+      (n) => n.profileId === profileId && n.applied
+    );
+    return { hasActiveNet: Boolean(active), netTurns: active?.turnsRemaining, netApplied: Boolean(applied) };
+  };
+
+  const positions = ['Haut-gauche', 'Haut-droite', 'Bas-gauche', 'Bas-droite'];
+
+  const gridStyle: React.CSSProperties =
+    colSize === 3
+      ? {
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gridTemplateRows: 'auto auto',
+          gap: '0.5rem',
+        }
+      : {
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gridTemplateRows: 'auto auto',
+          gap: '0.5rem',
+        };
+
+  return (
+    <div className="screen">
+      {/* Header */}
+      <div className="screen-header" style={{ borderBottom: '1px solid var(--color-border)' }}>
+        <div>
+          <div style={{ fontWeight: 700 }}>
+            Saison {state.season} — Tour {state.turn}
+          </div>
+          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-muted)' }}>
+            {cfg?.label} · Seuil : {threshold} par indicateur
+          </div>
+        </div>
+        {isThresholdMet && (
+          <span
+            style={{
+              marginLeft: 'auto',
+              background: '#e8f5e9',
+              color: '#2e7d32',
+              borderRadius: 99,
+              padding: '0.3rem 0.75rem',
+              fontSize: 'var(--font-size-xs)',
+              fontWeight: 700,
+            }}
+          >
+            ✅ Seuils atteints !
+          </span>
+        )}
+      </div>
+
+      <div className="screen-content" style={{ gap: '0.75rem' }}>
+        {/* Plateau: quadrants */}
+        <div style={gridStyle}>
+          {state.selectedProfiles.map((profile, i) => {
+            const netState = getNetState(profile.id);
+            const profileScore = state.profileScores[profile.id] ?? profile.scores;
+            const isThirdInGrid3 = colSize === 3 && i === 2;
+            return (
+              <div
+                key={profile.id}
+                style={
+                  isThirdInGrid3
+                    ? { gridColumn: '1 / -1' }
+                    : {}
+                }
+              >
+                <ProfileSlot
+                  profile={profile}
+                  scores={profileScore}
+                  color={QUADRANT_COLORS[i % 4]}
+                  position={positions[i] ?? `Position ${i + 1}`}
+                  onNetClick={() => setSelectedNetProfile(profile)}
+                  hasActiveNet={netState.hasActiveNet}
+                  netTurns={netState.netTurns}
+                  netApplied={netState.netApplied}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Compatibilités */}
+        {compatPairs.length > 0 && (
+          <div
+            style={{
+              background: '#e8f5e9',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.5rem 0.75rem',
+              fontSize: 'var(--font-size-xs)',
+              color: '#2e7d32',
+            }}
+          >
+            🤝 {compatPairs.length} paire{compatPairs.length > 1 ? 's' : ''} compatible{compatPairs.length > 1 ? 's' : ''} dans cette coloc !
+          </div>
+        )}
+
+        {/* Indicateurs collectifs */}
+        <div className="card card-elevated">
+          <h2
+            style={{
+              fontSize: 'var(--font-size-sm)',
+              fontWeight: 700,
+              marginBottom: '0.75rem',
+              color: 'var(--color-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}
+          >
+            Indicateurs collectifs
+          </h2>
+          <IndicatorBars
+            scores={collectiveScores}
+            threshold={threshold}
+            maxPossible={maxPossible}
+          />
+        </div>
+      </div>
+
+      {/* Footer actions */}
+      <div className="screen-footer">
+        {isThresholdMet ? (
+          <button
+            className="btn-primary"
+            onClick={() => dispatch({ type: 'VALIDATE_COLOCATION' })}
+            aria-label="Valider la colocation"
+            style={{ background: 'var(--color-fortune)' }}
+          >
+            🏆 Valider la colocation !
+          </button>
+        ) : (
+          <button
+            className="btn-secondary"
+            onClick={() => dispatch({ type: 'FAIL_SEASON' })}
+            aria-label="Abandonner cette saison"
+          >
+            Terminer la saison
+          </button>
+        )}
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            className="btn-primary"
+            onClick={() => dispatch({ type: 'SPIN_WHEEL' })}
+            disabled={state.wheelUsedThisTurn}
+            aria-label="Lancer la Roue de l'Infortune"
+            style={{ flex: 1 }}
+          >
+            {state.wheelUsedThisTurn ? '🎡 Roue utilisée' : '🎡 Lancer la Roue'}
+          </button>
+          <button
+            className="btn-secondary"
+            onClick={() => dispatch({ type: 'NEXT_TURN' })}
+            aria-label="Passer au tour suivant"
+            style={{ flex: 1 }}
+          >
+            ⏭️ Tour suivant
+          </button>
+        </div>
+      </div>
+
+      {/* Modales */}
+      <WheelSpinner
+        isOpen={state.showWheelModal}
+        result={state.wheelResult}
+        onClose={() => dispatch({ type: 'CLOSE_WHEEL_MODAL' })}
+      />
+
+      {selectedNetProfile && (
+        <SolidarityNetModal
+          profile={selectedNetProfile}
+          activeNets={state.activeSolidarityNets}
+          onActivate={(id) => dispatch({ type: 'ACTIVATE_NET', payload: id })}
+          onClose={() => setSelectedNetProfile(null)}
         />
       )}
     </div>

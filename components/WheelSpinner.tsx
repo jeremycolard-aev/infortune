@@ -1,88 +1,155 @@
 'use client';
-
-import { useEffect, useState } from 'react';
-import { formatEffect } from '@/lib/gameLogic';
-import type { WheelEvent } from '@/data/events';
-import type { Profile } from '@/data/profiles';
-import styles from './WheelSpinner.module.css';
+import { useState, useEffect } from 'react';
+import { WheelResult, INDICATOR_EMOJIS } from '@/data/types';
 
 interface Props {
-  event: WheelEvent;
-  profile: Profile;
-  outcome: 'fortune' | 'infortune';
+  isOpen: boolean;
+  result: WheelResult | null;
   onClose: () => void;
 }
 
-export default function WheelSpinner({ event, profile, outcome, onClose }: Props) {
-  const [phase, setPhase] = useState<'spinning' | 'result'>('spinning');
+export default function WheelSpinner({ isOpen, result, onClose }: Props) {
+  const [spinning, setSpinning] = useState(false);
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setPhase('result'), 2500);
-    return () => clearTimeout(t);
-  }, []);
+    if (isOpen && result) {
+      setSpinning(true);
+      setRevealed(false);
+      const timer = setTimeout(() => {
+        setSpinning(false);
+        setRevealed(true);
+      }, 2400);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, result]);
 
-  const result = event[outcome];
-  const isGood = outcome === 'fortune';
+  if (!isOpen) return null;
+
+  const isFortune = result?.isFortune ?? true;
+  const colors = isFortune
+    ? ['#4caf50', '#66bb6a', '#81c784', '#a5d6a7']
+    : ['#e53935', '#ef5350', '#f44336', '#ef9a9a'];
 
   return (
     <div
       className="modal-overlay"
+      onClick={revealed ? onClose : undefined}
       role="dialog"
       aria-modal="true"
-      aria-label={phase === 'spinning' ? 'La roue tourne…' : `Résultat : ${outcome}`}
+      aria-label="La Roue tourne"
     >
-      <div className={`modal-box ${styles.box}`}>
-        {phase === 'spinning' ? (
-          <div className={styles.spinPhase}>
-            <p className={styles.spinTitle}>La Roue tourne…</p>
-            <div
-              className={styles.wheel}
-              aria-busy="true"
-              aria-label="Roue en rotation"
-            />
-            <p className={styles.spinSub}>Quel sort attend la coloc ?</p>
-          </div>
-        ) : (
-          <div className={styles.resultPhase}>
-            <div
-              className={`${styles.resultBanner} ${isGood ? styles.fortune : styles.infortune}`}
+      <div className="modal-center" onClick={(e) => e.stopPropagation()}>
+        <h2 style={{ marginBottom: '1rem', fontSize: 'var(--font-size-xl)' }}>
+          🎡 La Roue tourne…
+        </h2>
+
+        {/* SVG Wheel */}
+        <div className="wheel-container">
+          <svg
+            className={spinning ? 'wheel-svg spin-anim' : 'wheel-svg'}
+            width="160"
+            height="160"
+            viewBox="0 0 160 160"
+            aria-hidden="true"
+          >
+            {/* 8 sectors alternating */}
+            {Array.from({ length: 8 }, (_, i) => {
+              const startAngle = (i / 8) * 360;
+              const endAngle = ((i + 1) / 8) * 360;
+              const start = polarToCartesian(80, 80, 75, endAngle);
+              const end = polarToCartesian(80, 80, 75, startAngle);
+              const largeArc = 0;
+              const color = (i % 2 === 0 ? colors[0] : colors[2]);
+              return (
+                <path
+                  key={i}
+                  d={`M 80 80 L ${start.x} ${start.y} A 75 75 0 ${largeArc} 0 ${end.x} ${end.y} Z`}
+                  fill={color}
+                />
+              );
+            })}
+            <circle cx="80" cy="80" r="18" fill="#fff" />
+            <text
+              x="80"
+              y="87"
+              textAnchor="middle"
+              fontSize="22"
+              style={{ userSelect: 'none' }}
             >
-              <span className={styles.bannerEmoji}>{isGood ? '🟢' : '🔴'}</span>
-              <span className={styles.bannerLabel}>
-                {isGood ? 'Fortune !' : 'Infortune…'}
-              </span>
+              🎡
+            </text>
+          </svg>
+
+          {spinning && (
+            <p style={{ color: 'var(--color-muted)', fontSize: 'var(--font-size-sm)' }}>
+              Le sort en est jeté…
+            </p>
+          )}
+        </div>
+
+        {/* Result */}
+        {revealed && result && (
+          <div className="animate-bounce-in" style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                fontSize: '2.5rem',
+                marginBottom: '0.5rem',
+              }}
+            >
+              {isFortune ? '🎁' : '⚡'}
+            </div>
+            <div
+              style={{
+                display: 'inline-block',
+                padding: '0.4rem 1rem',
+                borderRadius: 99,
+                background: isFortune ? '#e8f5e9' : '#fce4ec',
+                color: isFortune ? 'var(--color-fortune)' : 'var(--color-infortune)',
+                fontWeight: 700,
+                marginBottom: '0.75rem',
+                fontSize: 'var(--font-size-sm)',
+              }}
+            >
+              {isFortune ? 'Fortune !' : 'Infortune…'}
             </div>
 
-            <div className={styles.profileLine}>
-              <div
-                className={styles.miniAvatar}
-                style={{ background: profile.avatarBg }}
-                aria-hidden="true"
-              >
-                {profile.avatar}
+            <div
+              style={{
+                background: 'var(--color-bg)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.75rem',
+                marginBottom: '0.75rem',
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>
+                {result.profileName} — {result.event.title}
               </div>
-              <strong>{profile.name}</strong> est touché·e
+              <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)' }}>
+                {result.event.effects.map((e, i) => (
+                  <span key={i}>
+                    {INDICATOR_EMOJIS[e.indicator]}{' '}
+                    {e.delta > 0 ? `+${e.delta}` : e.delta}{' '}
+                  </span>
+                ))}
+              </div>
             </div>
 
-            <div className={`${styles.eventCard} ${isGood ? styles.eventGood : styles.eventBad}`}>
-              <p className={styles.eventLabel}>{result.label}</p>
-              <p
-                className={styles.effectLine}
-                aria-label={`Effet : ${formatEffect(result.effect)}`}
-              >
-                {formatEffect(result.effect)}
-              </p>
-            </div>
-
-            <p className={styles.phrase}>
-              <em>&ldquo;{result.phrase}&rdquo;</em>
+            <p
+              style={{
+                fontSize: 'var(--font-size-sm)',
+                color: 'var(--color-muted)',
+                fontStyle: 'italic',
+                marginBottom: '1.25rem',
+              }}
+            >
+              {result.event.phrase}
             </p>
 
             <button
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: '0.5rem' }}
+              className={isFortune ? 'btn-fortune' : 'btn-infortune'}
               onClick={onClose}
-              autoFocus
+              aria-label="Fermer et continuer"
             >
               Continuer
             </button>
@@ -91,4 +158,12 @@ export default function WheelSpinner({ event, profile, outcome, onClose }: Props
       </div>
     </div>
   );
+}
+
+function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return {
+    x: cx + r * Math.cos(rad),
+    y: cy + r * Math.sin(rad),
+  };
 }

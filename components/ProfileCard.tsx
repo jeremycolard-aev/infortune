@@ -1,122 +1,143 @@
 'use client';
-
-import { type Profile, INDICATOR_KEYS } from '@/data/profiles';
-import styles from './ProfileCard.module.css';
+import { Profile } from '@/data/types';
+import { INDICATOR_KEYS, INDICATOR_EMOJIS, MOBILITY_LABELS } from '@/data/types';
 
 interface Props {
   profile: Profile;
   selected?: boolean;
-  compatible?: boolean;
+  onSelect?: () => void;
+  onDeselect?: () => void;
   compact?: boolean;
-  onSelect?: (profile: Profile) => void;
-  onDeselect?: (profile: Profile) => void;
-  selectable?: boolean;
+  showCompatBadge?: boolean;
 }
 
-const INDICATOR_EMOJIS: Record<string, string> = {
-  financial: '💶',
-  health: '💪',
-  social: '🧑‍🤝‍🧑',
-  rights: '⚖️',
-  resilience: '🚀',
-};
+function ScoreDots({ value, max = 5 }: { value: number; max?: number }) {
+  return (
+    <div className="score-dots" aria-label={`Score : ${value} sur ${max}`}>
+      {Array.from({ length: max }, (_, i) => (
+        <span key={i} className={`score-dot${i < value ? ' filled' : ''}`} />
+      ))}
+    </div>
+  );
+}
 
 export default function ProfileCard({
   profile,
   selected = false,
-  compatible = false,
-  compact = false,
   onSelect,
   onDeselect,
-  selectable = false,
+  compact = false,
+  showCompatBadge = false,
 }: Props) {
-  function handleClick() {
-    if (!selectable) return;
-    if (selected && onDeselect) onDeselect(profile);
-    else if (!selected && onSelect) onSelect(profile);
-  }
+  const handleClick = () => {
+    if (selected && onDeselect) onDeselect();
+    else if (!selected && onSelect) onSelect();
+  };
+
+  const isInteractive = Boolean(onSelect || onDeselect);
 
   return (
     <article
-      className={`${styles.card} ${selected ? styles.selected : ''} ${compact ? styles.compact : ''}`}
-      onClick={handleClick}
-      role={selectable ? 'button' : 'article'}
-      tabIndex={selectable ? 0 : undefined}
-      aria-pressed={selectable ? selected : undefined}
-      aria-label={`${profile.name}, ${profile.age} ans — ${profile.fragility}`}
-      onKeyDown={(e) => {
-        if (selectable && (e.key === 'Enter' || e.key === ' ')) {
-          e.preventDefault();
-          handleClick();
-        }
+      onClick={isInteractive ? handleClick : undefined}
+      role={isInteractive ? 'button' : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      aria-pressed={isInteractive ? selected : undefined}
+      onKeyDown={isInteractive ? (e) => e.key === 'Enter' && handleClick() : undefined}
+      style={{
+        background: selected ? `${profile.portraitColor}99` : '#fff',
+        borderRadius: 'var(--radius-md)',
+        border: selected ? `2.5px solid var(--color-accent)` : '2px solid var(--color-border)',
+        padding: compact ? '0.75rem' : '1rem',
+        cursor: isInteractive ? 'pointer' : 'default',
+        transition: 'border-color 0.15s, background 0.15s',
+        boxShadow: selected ? 'var(--shadow-md)' : 'var(--shadow-sm)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.5rem',
       }}
     >
-      <div className={styles.header}>
+      {/* Header: portrait + nom + infos */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <div
-          className={styles.avatar}
-          style={{ background: profile.avatarBg }}
+          className="portrait"
+          style={{ background: profile.portraitColor }}
           aria-hidden="true"
         >
-          {profile.avatar}
+          {profile.portraitEmoji}
         </div>
-        <div className={styles.identity}>
-          <div className={styles.name}>
-            {profile.name}
-            <span className={styles.age}>{profile.age} ans</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <strong style={{ fontSize: 'var(--font-size-lg)' }}>{profile.name}</strong>
+            <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)' }}>
+              {profile.age} ans
+            </span>
+            {showCompatBadge && selected && (
+              <span className="badge badge-compat">✓ En coloc</span>
+            )}
           </div>
-          <span className="badge badge-fragility">{profile.fragility}</span>
+          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-muted)' }}>
+            {profile.fragility}
+          </div>
         </div>
-        {compatible && (
-          <span className="badge badge-compatible" aria-label="Compatible">
-            ✓ Compatibles
-          </span>
-        )}
         {selected && (
-          <div className={styles.selectedCheck} aria-hidden="true">✓</div>
+          <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>✅</span>
         )}
       </div>
 
       {!compact && (
-        <p className={styles.story}>{profile.story}</p>
-      )}
-
-      <div className={styles.scores} aria-label="Scores des indicateurs">
-        {INDICATOR_KEYS.map((key) => (
-          <div key={key} className={styles.scoreRow}>
-            <span className={styles.scoreEmoji} aria-hidden="true">
-              {INDICATOR_EMOJIS[key]}
-            </span>
-            <div
-              className={styles.pips}
-              aria-label={`${INDICATOR_EMOJIS[key]} : ${profile.scores[key]} sur 5`}
-            >
-              {Array.from({ length: 5 }, (_, i) => (
-                <span
-                  key={i}
-                  className={`${styles.pip} ${i < profile.scores[key] ? styles.pipFilled : ''}`}
-                />
-              ))}
-            </div>
-            <span className={styles.scoreNum}>{profile.scores[key]}</span>
-          </div>
-        ))}
-      </div>
-
-      {!compact && (
-        <div className={styles.meta}>
-          <div className={styles.metaRow}>
-            <span title="Mobilité">{profile.mobility}</span>
-            <span title="Logement">{profile.housing}</span>
-            <span className={styles.traits} aria-label="Traits de personnalité">
-              {profile.traits.map((t, i) => (
-                <span key={i}>{t}</span>
-              ))}
-            </span>
-          </div>
-          <p className={styles.needs} aria-label="Besoins">
-            <strong>Besoins :</strong> {profile.needs}
+        <>
+          {/* Histoire */}
+          <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-muted)', lineHeight: 1.4 }}>
+            {profile.story}
           </p>
-        </div>
+
+          {/* Scores */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            {INDICATOR_KEYS.map((key) => (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.9rem', width: '1.25rem', textAlign: 'center' }}>
+                  {INDICATOR_EMOJIS[key]}
+                </span>
+                <ScoreDots value={profile.scores[key]} />
+              </div>
+            ))}
+          </div>
+
+          {/* Traits + mobilité */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+            <span
+              style={{
+                fontSize: 'var(--font-size-sm)',
+                background: 'var(--color-bg)',
+                borderRadius: 99,
+                padding: '0.2rem 0.6rem',
+              }}
+            >
+              {MOBILITY_LABELS[profile.mobility]}
+            </span>
+            {profile.hasHome && (
+              <span className="badge badge-home">🏠 Logement</span>
+            )}
+            {profile.traits.map((trait, i) => (
+              <span key={i} style={{ fontSize: '1.1rem' }} aria-hidden="true">
+                {trait}
+              </span>
+            ))}
+          </div>
+
+          {/* Besoins */}
+          <div
+            style={{
+              fontSize: 'var(--font-size-xs)',
+              color: 'var(--color-accent)',
+              background: 'rgba(61,107,143,0.06)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.4rem 0.6rem',
+            }}
+          >
+            🎯 {profile.needs}
+          </div>
+        </>
       )}
     </article>
   );

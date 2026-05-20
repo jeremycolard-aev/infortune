@@ -1,62 +1,54 @@
-const SAVE_KEY = 'ma-coloc-solidaire-save';
+import { Difficulty, GameScreen, ActiveNet, Scores, WheelResult, SeasonRecord } from '@/data/types';
 
-export interface NetState {
-  activated: boolean;
-  turnsLeft: number;
-  applied: boolean;
-}
-
-export interface SeasonRecord {
+export interface GameSave {
+  screen: GameScreen;
   season: number;
-  profileIds: number[];
-  success: boolean;
-  scores: Record<string, number>;
-  compatibilityCount: number;
-  date: string;
-}
-
-export interface SaveData {
-  season: number;
-  difficulty: 3 | 4 | 'expert';
-  threshold: number;
+  difficulty: Difficulty | null;
+  drawnProfileIds: number[];
   selectedProfileIds: number[];
-  scoreOverrides: Record<number, Record<string, number>>;
-  nets: Record<number, NetState>;
-  wheelUsed: boolean;
+  profileScores: Record<number, Scores>;
+  activeSolidarityNets: ActiveNet[];
+  turn: number;
+  wheelUsedThisTurn: boolean;
+  wheelResults: WheelResult[];
   history: SeasonRecord[];
-  screen: string;
 }
 
-export function saveGame(data: SaveData): void {
+const SAVE_KEY = 'ma-coloc-solidaire-v1';
+
+export function saveGame(state: GameSave): void {
+  if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
   } catch {
-    // localStorage may be unavailable
+    // localStorage unavailable (private mode, quota exceeded)
   }
 }
 
-export function loadGame(): SaveData | null {
+export function loadGame(): GameSave | null {
+  if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as SaveData;
+    return raw ? (JSON.parse(raw) as GameSave) : null;
   } catch {
     return null;
   }
 }
 
-export function clearSave(): void {
-  try {
-    localStorage.removeItem(SAVE_KEY);
-  } catch {
-    // ignore
-  }
-}
-
 export function hasSave(): boolean {
+  if (typeof window === 'undefined') return false;
   try {
     return localStorage.getItem(SAVE_KEY) !== null;
   } catch {
     return false;
+  }
+}
+
+export function clearSave(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(SAVE_KEY);
+  } catch {
+    // ignore
   }
 }

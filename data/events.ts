@@ -1,202 +1,186 @@
-import type { Scores } from './profiles';
+import { WheelEvent } from './types';
 
-type PartialScores = Partial<Scores>;
-
-export interface WheelEvent {
-  profileId: number;
-  fortune: {
-    label: string;
-    effect: PartialScores;
-    phrase: string;
-  };
-  infortune: {
-    label: string;
-    effect: PartialScores;
-    phrase: string;
-  };
-}
-
-export const wheelEvents: WheelEvent[] = [
+export const WHEEL_EVENTS: WheelEvent[] = [
   {
     profileId: 1,
     fortune: {
-      label: "Atelier de reconversion",
-      effect: { resilience: 2 },
-      phrase: "Samira a sorti le tablier professionnel. Direction la cuisine des possibles !",
+      title: 'Atelier de reconversion',
+      effects: [{ indicator: 'resilience', delta: 2 }],
+      phrase: '« Un nouveau départ, avec les bons outils ! »',
     },
     infortune: {
-      label: "Employeur en faillite",
-      effect: { financial: -2 },
-      phrase: "Le restaurant a fermé. Même le plat du jour était en liquidation.",
+      title: 'Employeur en faillite',
+      effects: [{ indicator: 'financial', delta: -2 }],
+      phrase: '« Le compte est à sec, mais pas l\'espoir... »',
     },
   },
   {
     profileId: 2,
     fortune: {
-      label: "Véhicule adapté + accompagnement",
-      effect: { health: 1 },
-      phrase: "Hervé a reçu les clés d'un véhicule adapté. Il repart sur les routes !",
+      title: 'Véhicule adapté + accompagnement',
+      effects: [{ indicator: 'health', delta: 1 }],
+      phrase: '« Enfin la mobilité retrouvée ! »',
     },
     infortune: {
-      label: "Dossier MDPH rejeté",
-      effect: { rights: -2 },
-      phrase: "Le formulaire de 47 pages a été perdu. Retry dans 6 mois.",
+      title: 'Dossier MDPH rejeté',
+      effects: [{ indicator: 'rights', delta: -2 }],
+      phrase: '« La paperasse a encore frappé... »',
     },
   },
   {
     profileId: 3,
     fortune: {
-      label: "Voisin bienveillant comme soutien",
-      effect: { social: 2 },
-      phrase: "Léa a trouvé une oreille attentive au bout du couloir. Vive les voisins !",
+      title: 'Voisin bienveillant comme soutien',
+      effects: [{ indicator: 'social', delta: 2 }],
+      phrase: '« Parfois, la solidarité vient du palier ! »',
     },
     infortune: {
-      label: "Ex ne paie plus la pension",
-      effect: { financial: -2 },
-      phrase: "Le virement n'est pas passé. Encore. Le silence a un coût.",
+      title: 'Ex ne paie plus la pension',
+      effects: [{ indicator: 'financial', delta: -2 }],
+      phrase: '« Les promesses s\'évaporent, pas les factures... »',
     },
   },
   {
     profileId: 4,
     fortune: {
-      label: "Bénévole aide pour le français",
-      effect: { rights: 1, social: 1 },
-      phrase: "Aïssa conjugue maintenant l'espoir au présent. Et au futur !",
+      title: 'Bénévole aide pour le français',
+      effects: [{ indicator: 'rights', delta: 1 }, { indicator: 'social', delta: 1 }],
+      phrase: '« Les mots ouvrent des portes ! »',
     },
     infortune: {
-      label: "Hébergement d'urgence prend fin",
-      effect: { financial: -2, health: -1 },
-      phrase: "La date limite n'attendait pas. Les valises non plus.",
+      title: "Hébergement d'urgence prend fin",
+      effects: [{ indicator: 'financial', delta: -2 }, { indicator: 'health', delta: -1 }],
+      phrase: '« La précarité ne prévient pas... »',
     },
   },
   {
     profileId: 5,
     fortune: {
-      label: "Colocation solidaire acceptée",
-      effect: { social: 2, health: 1 },
-      phrase: "Thomas et sa fille ont trouvé une porte ouverte. Enfin !",
+      title: 'Colocation solidaire acceptée',
+      effects: [{ indicator: 'social', delta: 2 }, { indicator: 'health', delta: 1 }],
+      phrase: '« Bienvenue dans la coloc, Thomas ! »',
     },
     infortune: {
-      label: "Dossier DALO refusé",
-      effect: { rights: -2 },
-      phrase: "Le droit au logement opposable... s'est opposé. Ironique.",
+      title: 'Dossier DALO refusé',
+      effects: [{ indicator: 'rights', delta: -2 }],
+      phrase: '« Le droit au logement... c\'est compliqué. »',
     },
   },
   {
     profileId: 6,
     fortune: {
-      label: "Entreprise inclusive embauche",
-      effect: { financial: 2 },
-      phrase: "Karim a le permis, l'expérience et maintenant le poste. Enfin !",
+      title: 'Entreprise inclusive embauche',
+      effects: [{ indicator: 'financial', delta: 2 }],
+      phrase: '« Enfin une chance équitable ! »',
     },
     infortune: {
-      label: "Refus location à cause du nom",
-      effect: { rights: -2 },
-      phrase: "Le propriétaire avait soudain un 'autre candidat'. Coïncidence.",
+      title: 'Refus de location à cause du nom',
+      effects: [{ indicator: 'rights', delta: -2 }],
+      phrase: '« Les préjugés ont la vie dure... »',
     },
   },
   {
     profileId: 7,
     fortune: {
-      label: "Super thérapeute trouvé",
-      effect: { health: 2 },
-      phrase: "Chloé a enfin trouvé quelqu'un qui écoute sans regarder sa montre.",
+      title: 'Super thérapeute trouvé',
+      effects: [{ indicator: 'health', delta: 2 }],
+      phrase: '« La parole libère ! »',
     },
     infortune: {
-      label: "Psy part à l'étranger",
-      effect: { health: -2 },
-      phrase: "La valise du psy a fait plus de chemin que prévu. Adieu séances.",
+      title: "Psy part à l'étranger",
+      effects: [{ indicator: 'health', delta: -2 }],
+      phrase: '« Et maintenant, on fait quoi... »',
     },
   },
   {
     profileId: 8,
     fortune: {
-      label: "Groupe de parole CSAPA",
-      effect: { resilience: 2, social: 1 },
-      phrase: "Marc a pris la parole. Et gardé la tête haute.",
+      title: 'Groupe de parole CSAPA',
+      effects: [{ indicator: 'resilience', delta: 2 }, { indicator: 'social', delta: 1 }],
+      phrase: '« Ensemble, on est plus forts ! »',
     },
     infortune: {
-      label: "Rechute + éloignement des proches",
-      effect: { health: -1, social: -2 },
-      phrase: "Le chemin de la reconstruction a un virage difficile ce soir.",
+      title: 'Rechute + éloignement des proches',
+      effects: [{ indicator: 'health', delta: -1 }, { indicator: 'social', delta: -2 }],
+      phrase: '« Un pas en arrière, mais pas la fin du chemin. »',
     },
   },
   {
     profileId: 9,
     fortune: {
-      label: "Jardinage avec la voisine",
-      effect: { social: 2, health: 1 },
-      phrase: "Colette a planté des courgettes ET une amitié. Double récolte.",
+      title: 'Jardinage avec la voisine',
+      effects: [{ indicator: 'social', delta: 2 }, { indicator: 'health', delta: 1 }],
+      phrase: '« Les haricots poussent, le moral aussi ! »',
     },
     infortune: {
-      label: "Chute → immobilisation",
-      effect: { health: -2 },
-      phrase: "La marche du jardin a eu raison de Colette. Attention aux dalles !",
+      title: 'Chute → immobilisation',
+      effects: [{ indicator: 'health', delta: -2 }],
+      phrase: '« L\'autonomie, ça peut tenir à un trottoir. »',
     },
   },
   {
     profileId: 10,
     fortune: {
-      label: "Médiatrice négocie avec la banque",
-      effect: { rights: 2, financial: 1 },
-      phrase: "La médiatrice a parlé chiffres. La banque a enfin entendu.",
+      title: 'Médiatrice négocie avec la banque',
+      effects: [{ indicator: 'rights', delta: 2 }, { indicator: 'financial', delta: 1 }],
+      phrase: '« La dette, ça se renégocie ! »',
     },
     infortune: {
-      label: "Prêt passe en contentieux",
-      effect: { financial: -2 },
-      phrase: "Les huissiers ont frappé. Pascal n'avait plus que ses outils.",
+      title: 'Prêt passe en contentieux',
+      effects: [{ indicator: 'financial', delta: -2 }],
+      phrase: '« Huissier à la porte, moral en berne. »',
     },
   },
   {
     profileId: 11,
     fortune: {
-      label: "Assurance débloque l'indemnité",
-      effect: { health: 2, resilience: 1 },
-      phrase: "Jérôme a reçu le chèque et retrouvé le sourire. Dans l'ordre.",
+      title: "Assurance débloque l'indemnité",
+      effects: [{ indicator: 'health', delta: 2 }, { indicator: 'resilience', delta: 1 }],
+      phrase: '« La vie reprend des couleurs ! »',
     },
     infortune: {
-      label: "Erreur administrative bloque versement",
-      effect: { financial: -2 },
-      phrase: "Un chiffre mal saisi. Des mois d'attente. L'administration a ses mystères.",
+      title: 'Erreur administrative bloque versement',
+      effects: [{ indicator: 'financial', delta: -2 }],
+      phrase: '« Une virgule mal placée, et tout s\'arrête. »',
     },
   },
   {
     profileId: 12,
     fortune: {
-      label: "CDI proposé après CDD exemplaire",
-      effect: { financial: 3 },
-      phrase: "Hugo a signé en CDI. Enfin un contrat qui ne se termine pas trop vite !",
+      title: 'CDI proposé après CDD exemplaire',
+      effects: [{ indicator: 'financial', delta: 3 }],
+      phrase: '« La stabilité, enfin ! »',
     },
     infortune: {
-      label: "Fin de mission sans préavis",
-      effect: { financial: -2, resilience: -1 },
-      phrase: "La mission s'est arrêtée par SMS. Même pas un merci.",
+      title: 'Fin de mission sans préavis',
+      effects: [{ indicator: 'financial', delta: -2 }, { indicator: 'resilience', delta: -1 }],
+      phrase: '« L\'intérim c\'est l\'imprévu garanti. »',
     },
   },
   {
     profileId: 13,
     fortune: {
-      label: "Chantier d'insertion + confiance formateur",
-      effect: { resilience: 2, social: 1 },
-      phrase: "Karl a construit bien plus qu'un mur ce matin. Il a construit sa confiance.",
+      title: "Chantier d'insertion + confiance formateur",
+      effects: [{ indicator: 'resilience', delta: 2 }, { indicator: 'social', delta: 1 }],
+      phrase: '« Le marteau et la confiance, dans le même coffre ! »',
     },
     infortune: {
-      label: "Erreur dossier judiciaire",
-      effect: { rights: -2 },
-      phrase: "Une faute de frappe dans le dossier. Et c'est Karl qui paie les frais.",
+      title: 'Erreur dossier judiciaire',
+      effects: [{ indicator: 'rights', delta: -2 }],
+      phrase: '« Le passé a encore rattrapé le présent. »',
     },
   },
   {
     profileId: 14,
     fortune: {
-      label: "Association aide pour régularisation",
-      effect: { rights: 2 },
-      phrase: "Maria a reçu le tampon tant attendu. Elle peut enfin souffler.",
+      title: 'Association aide pour régularisation',
+      effects: [{ indicator: 'rights', delta: 2 }],
+      phrase: '« Les papiers, c\'est la liberté ! »',
     },
     infortune: {
-      label: "Obligation de quitter le territoire",
-      effect: { resilience: -3 },
-      phrase: "L'enveloppe administrative a détruit des mois d'espoir en un instant.",
+      title: 'Obligation de quitter le territoire',
+      effects: [{ indicator: 'resilience', delta: -3 }],
+      phrase: '« L\'OQTF : trois lettres qui brisent des vies. »',
     },
   },
 ];
