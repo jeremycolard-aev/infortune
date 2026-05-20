@@ -223,7 +223,6 @@ function gameReducer(state: GameState, action: Action): GameState {
     }
 
     case 'NEXT_SEASON': {
-      const poolSize = state.difficulty === 'expert' ? 6 : 5;
       return {
         ...state,
         screen: 'difficulty',

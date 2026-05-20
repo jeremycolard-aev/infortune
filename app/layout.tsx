@@ -5,8 +5,6 @@ export const metadata: Metadata = {
   title: 'Ma Coloc Solidaire',
   description:
     "Jeu pédagogique de gestion de colocation solidaire — inspiré de La Roue de l'Infortune (LpL)",
-  manifest: '/infortune/manifest.json',
-  icons: { icon: '/infortune/favicon.ico' },
 };
 
 export const viewport: Viewport = {
